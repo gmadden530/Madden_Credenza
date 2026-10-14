@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Custom Record Credenza - Interactive 3D Blueprint</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Inter Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-panel: rgba(24, 22, 20, 0.92);
+      --accent: #d4af37;
+      --text: #f3efea;
+      --muted: #aaa095;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    body {
+      background: #1a1917;
+      color: var(--text);
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    input[type="range"] {
+      accent-color: var(--accent);
+    }
+    /* Floating 3D Dimension Labels */
+    #labels-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 5;
+    }
+    .dim-label {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      background: rgba(18, 16, 14, 0.88);
+      color: #f7e7b4;
+      border: 1px solid rgba(212, 175, 55, 0.65);
+      padding: 3px 7px;
+      border-radius: 6px;
+      font-size: 10.5px;
+      font-weight: 600;
+      white-space: nowrap;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+      transition: opacity 0.2s;
+    }
+    /* Snapshot Img Long-Press Support */
+    #snapshot-img {
+      -webkit-touch-callout: default;
+      user-select: auto;
+      -webkit-user-select: auto;
+    }
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.04);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(212, 175, 55, 0.4);
+      border-radius: 4px;
+    }
+  </style>
+
+  <!-- Three.js & OrbitControls Import Map -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body class="bg-[#1a1917] text-[#f3efea]">
+
+  <!-- 3D Viewport Container -->
+  <div id="canvas-container">
+    <div id="labels-container"></div>
+  </div>
+
+  <!-- Non-blocking Toast Message Box -->
+  <div id="toast-box" class="fixed top-4 right-4 z-50 hidden bg-[#24201c] border border-[#d4af37] text-[#f7e7b4] px-4 py-2.5 rounded-xl shadow-2xl text-xs font-semibold transition-all duration-300">
+    <span id="toast-text">Notification</span>
+  </div>
+
+  <!-- Collapsible Glassmorphic Control Panel -->
+  <div id="ui-panel" class="fixed top-3 left-3 z-20 w-[295px] sm:w-[315px] max-h-[calc(100vh-24px)] overflow-y-auto bg-[#181614]/90 backdrop-blur-md border border-[#d4af37]/35 rounded-2xl p-3.5 shadow-2xl transition-all duration-200">
+    <!-- Panel Header -->
+    <div id="panel-header" class="flex items-center justify-between cursor-pointer">
+      <div>
+        <h1 class="text-sm sm:text-base font-bold text-[#d4af37] tracking-wide">Record Credenza 3D</h1>
+        <p class="text-[11px] text-[#aaa095]">1" = 1 Unit • Exact Blueprint Math</p>
+      </div>
+      <button id="toggle-ui" class="bg-[#d4af37]/15 hover:bg-[#d4af37]/30 text-[#d4af37] border border-[#d4af37]/40 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition">
+        Hide Menu
+      </button>
+    </div>
+
+    <!-- Panel Body -->
+    <div id="panel-body" class="mt-3 pt-3 border-t border-white/10 space-y-3">
+      
+      <!-- Unit Separation Slider -->
+      <div>
+        <label class="flex justify-between items-center text-xs text-[#e5e0d8] mb-1 font-medium">
+          <span>Unit Separation (Gap)</span>
+          <span id="gap-val" class="text-[#d4af37] font-bold">0.0"</span>
+        </label>
+        <input type="range" id="gap-slider" min="0" max="18" step="0.5" value="0" class="w-full cursor-pointer" />
+      </div>
+
+      <!-- Visibility Controls -->
+      <div>
+        <div class="text-[11px] font-semibold text-[#aaa095] uppercase tracking-wider mb-1.5">Visibility Toggles</div>
+        <div class="grid grid-cols-2 gap-1.5">
+          <button id="btn-gear" class="bg-[#d4af37] text-[#181614] font-semibold py-2 px-2.5 rounded-lg text-xs border border-[#d4af37] transition">
+            Shelf & Gear: ON
+          </button>
+          <button id="btn-records" class="bg-[#d4af37] text-[#181614] font-semibold py-2 px-2.5 rounded-lg text-xs border border-[#d4af37] transition">
+            Records: ON
+          </button>
+          <button id="btn-door" class="bg-white/10 hover:bg-white/20 text-[#f3efea] font-medium py-2 px-2.5 rounded-lg text-xs border border-white/15 transition">
+            Open Door
+          </button>
+          <button id="btn-dims" class="bg-[#d4af37] text-[#181614] font-semibold py-2 px-2.5 rounded-lg text-xs border border-[#d4af37] transition">
+            Dimensions: ON
+          </button>
+          <button id="btn-room" class="col-span-2 bg-[#d4af37] text-[#181614] font-semibold py-1.5 px-2.5 rounded-lg text-xs border border-[#d4af37] transition">
+            Room & Wall: ON
+          </button>
+        </div>
+
+        <!-- One-Tap Bare Credenza Only Button -->
+        <button id="btn-credenza-only" class="w-full mt-2 py-2 px-3 rounded-lg text-xs font-semibold bg-[#d4af37]/15 hover:bg-[#d4af37]/25 text-[#f7e7b4] border border-[#d4af37]/50 transition">
+          🪵 Bare Credenza Only (Hide Shelf, Gear & LPs)
+        </button>
+      </div>
+
+      <!-- Camera Preset Buttons -->
+      <div>
+        <div class="text-[11px] font-semibold text-[#aaa095] uppercase tracking-wider mb-1.5">Camera Presets</div>
+        <div class="grid grid-cols-2 gap-1.5">
+          <button id="cam-front" class="bg-white/10 hover:bg-[#d4af37]/25 text-[#f3efea] py-2 px-2.5 rounded-lg text-xs border border-white/15 transition">
+            Front View
+          </button>
+          <button id="cam-iso" class="bg-white/10 hover:bg-[#d4af37]/25 text-[#f3efea] py-2 px-2.5 rounded-lg text-xs border border-white/15 transition">
+            3/4 Angle
+          </button>
+          <button id="cam-top" class="bg-white/10 hover:bg-[#d4af37]/25 text-[#f3efea] py-2 px-2.5 rounded-lg text-xs border border-white/15 transition">
+            Top View
+          </button>
+          <button id="cam-side" class="bg-white/10 hover:bg-[#d4af37]/25 text-[#f3efea] py-2 px-2.5 rounded-lg text-xs border border-white/15 transition">
+            Side Slant View
+          </button>
+        </div>
+      </div>
+
+      <!-- Woodworker Snapshot & Cut List Buttons -->
+      <div class="pt-1 space-y-1.5">
+        <button id="btn-snap" class="w-full py-2.5 px-3 rounded-xl font-bold text-xs text-[#151311] bg-gradient-to-r from-[#e5c453] to-[#b89020] shadow-lg hover:brightness-105 transition">
+          📸 Snap 3D Photo (Save / Copy)
+        </button>
+        <button id="btn-cutlist" class="w-full py-2 px-3 rounded-xl font-semibold text-xs text-[#f7e7b4] bg-white/10 hover:bg-white/15 border border-[#d4af37]/40 transition">
+          📋 View / Copy Woodworker Cut List
+        </button>
+      </div>
+
+      <!-- Specs Summary -->
+      <div class="pt-2.5 border-t border-white/10 text-[11px] leading-relaxed text-[#aaa095] space-y-0.5">
+        <div><strong class="text-[#f3efea]">Left Unit:</strong> 51.0" W × 36.25" H × 16.0" D</div>
+        <div>• Bottom: 15" | 20" | 13" Cabinet (15" H)</div>
+        <div>• Top: 13" Tray | 13" Tray | 22" Records</div>
+        <div><strong class="text-[#f3efea]">Right Unit:</strong> 42.0" W × 31.5" H × 16.0" D</div>
+        <div>• Bottom: 17.75" | 22" Records (15" H)</div>
+        <div>• Top: 13" | 13" | 13" Trays</div>
+        <div><strong class="text-[#f3efea]">Tray Cut:</strong> 11" Back slanting to 4.5" Front</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pop-Up Snapshot Modal (Long-Press to Save/Copy on Mobile) -->
+  <div id="photo-modal" class="fixed inset-0 z-50 hidden bg-black/90 backdrop-blur-md flex-col items-center justify-center p-4">
+    <div class="bg-[#d4af37]/15 border border-[#d4af37]/50 text-[#f7e7b4] text-xs sm:text-sm font-semibold px-4 py-2 rounded-xl mb-3 text-center">
+      📱 Long-press the image below to <strong>"Save to Photos"</strong> or <strong>"Copy"</strong>
+    </div>
+    <img id="snapshot-img" alt="3D Record Credenza Blueprint Snapshot" class="max-w-[94vw] max-h-[68vh] rounded-xl border-2 border-[#d4af37] shadow-2xl object-contain" />
+    <div class="flex gap-3 mt-4">
+      <button id="btn-share-img" class="bg-[#d4af37] hover:bg-[#e3be42] text-[#181614] font-bold px-4 py-2.5 rounded-xl text-xs sm:text-sm transition">
+        Share / Save to Phone
+      </button>
+      <button id="btn-close-modal" class="bg-white/15 hover:bg-white/25 text-white font-semibold px-4 py-2.5 rounded-xl text-xs sm:text-sm transition">
+        Back to 3D Model
+      </button>
+    </div>
+  </div>
+
+  <!-- Woodworker Cut List Modal -->
+  <div id="cutlist-modal" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
+    <div class="bg-[#1e1b18] border border-[#d4af37]/40 rounded-2xl max-w-2xl w-full max-h-[88vh] flex flex-col shadow-2xl overflow-hidden">
+      <div class="flex items-center justify-between px-4 py-3.5 border-b border-white/10 bg-[#181614]">
+        <div>
+          <h2 class="text-sm sm:text-base font-bold text-[#d4af37]">Woodworker Cut List (3/4" Walnut Plywood)</h2>
+          <p class="text-[11px] text-[#aaa095]">Exact panel measurements ready to text or email</p>
+        </div>
+        <button id="btn-close-cutlist" class="bg-white/10 hover:bg-white/20 text-white px-3 py-1 rounded-lg text-xs font-semibold">
+          ✕ Close
+        </button>
+      </div>
+      <div class="p-4 overflow-y-auto space-y-4 text-xs text-[#e5e0d8]">
+        <div class="flex justify-between items-center bg-[#d4af37]/10 border border-[#d4af37]/30 p-3 rounded-xl">
+          <span>Copy the complete specification sheet to paste into a text or email:</span>
+          <button id="btn-copy-specs" class="bg-[#d4af37] text-[#181614] font-bold px-3 py-1.5 rounded-lg text-xs shrink-0 ml-2">
+            📋 Copy Specs
+          </button>
+        </div>
+
+        <div class="space-y-1.5">
+          <h3 class="font-bold text-[#f7e7b4]">LEFT UNIT — 51.0" W × 36.25" H × 16.0" D (Includes 4" Brass Feet)</h3>
+          <ul class="list-disc list-inside space-y-1 text-[#d5cfc7]">
+            <li><strong>2× Horizontal Boards (Base & Middle Shelf):</strong> 51.0" W × 16.0" D (3/4" ply)</li>
+            <li><strong>4× Bottom Row Vertical Walls:</strong> 15.0" H × 16.0" D (3/4" ply) → 15" | 20" | 13" bays</li>
+            <li><strong>1× Solid Cabinet Door (Bottom Right):</strong> 12.875" W × 14.875" H (3/4" ply) + brass knob</li>
+            <li><strong>2× Sloped Tray Dividers (Top Left):</strong> 16.0" D, straight slant from 11.0" Back to 4.5" Front</li>
+            <li><strong>2× Tray Front Walnut Panels:</strong> 13.0" W × 3.5" H (flush on shelf) + 13" brass rails at 4.15" H</li>
+            <li><strong>2× Upper 22" Box Vertical Walls:</strong> 15.0" H × 16.0" D (3/4" ply)</li>
+            <li><strong>1× Upper 22" Box Roof:</strong> 23.5" W × 16.0" D (3/4" ply)</li>
+          </ul>
+        </div>
+
+        <div class="space-y-1.5">
+          <h3 class="font-bold text-[#f7e7b4]">RIGHT UNIT — 42.0" W × 31.5" H × 16.0" D (Includes 4" Brass Feet)</h3>
+          <ul class="list-disc list-inside space-y-1 text-[#d5cfc7]">
+            <li><strong>2× Horizontal Boards (Base & Middle Shelf):</strong> 42.0" W × 16.0" D (3/4" ply)</li>
+            <li><strong>3× Bottom Row Vertical Walls:</strong> 15.0" H × 16.0" D (3/4" ply) → 17.75" | 22" bays</li>
+            <li><strong>4× Sloped Tray Dividers (Top Row):</strong> 16.0" D, straight slant from 11.0" Back to 4.5" Front</li>
+            <li><strong>3× Tray Front Walnut Panels:</strong> 13.0" W × 3.5" H (flush on shelf) + 13" brass rails at 4.15" H</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden Clipboard Input -->
+  <textarea id="clipboard-helper" class="fixed -top-96 opacity-0 pointer-events-none"></textarea>
+
+  <!-- Bottom Gesture Hint -->
+  <div id="hint" class="fixed bottom-3 left-1/2 -translate-x-1/2 z-10 bg-[#181614]/80 border border-white/10 px-3.5 py-1.5 rounded-full text-[11px] text-[#aaa095] pointer-events-none whitespace-nowrap">
+    Drag: Rotate &nbsp;|&nbsp; Pinch/Scroll: Zoom &nbsp;|&nbsp; Tap Cabinet Door to Open
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    function showToast(message) {
+      const box = document.getElementById('toast-box');
+      const text = document.getElementById('toast-text');
+      text.textContent = message;
+      box.classList.remove('hidden');
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => box.classList.add('hidden'), 3000);
+    }
+
+    const container = document.getElementById('canvas-container');
+    const labelsContainer = document.getElementById('labels-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x22201e);
+
+    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 1, 1000);
+    camera.position.set(24, 34, 114);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 21, 0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI / 2 + 0.05;
+    controls.update();
+
+    // --- LIGHTING ---
+    const ambientLight = new THREE.AmbientLight(0xfff8ed, 1.35);
+    scene.add(ambientLight);
+
+    const keyLight = new THREE.DirectionalLight(0xfff4e0, 2.2);
+    keyLight.position.set(45, 85, 75);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.width = 2048;
+    keyLight.shadow.mapSize.height = 2048;
+    const d = 70;
+    keyLight.shadow.camera.left = -d;
+    keyLight.shadow.camera.right = d;
+    keyLight.shadow.camera.top = d;
+    keyLight.shadow.camera.bottom = -d;
+    keyLight.shadow.bias = -0.0005;
+    scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0xdde8ff, 0.65);
+    fillLight.position.set(-60, 40, 40);
+    scene.add(fillLight);
+
+    // --- PROCEDURAL WALNUT & PLYWOOD EDGE TEXTURES ---
+    function createWalnutTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#4a3222';
+      ctx.fillRect(0, 0, 512, 512);
+      for (let i = 0; i < 400; i++) {
+        ctx.fillStyle = i % 2 === 0 ? 'rgba(30, 18, 10, 0.16)' : 'rgba(95, 65, 42, 0.12)';
+        const x = Math.random() * 512;
+        const w = 1 + Math.random() * 5;
+        ctx.fillRect(x, 0, w, 512);
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      return tex;
+    }
+
+    function createPlyEdgeTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      const stripes = ['#d8be98', '#9c7a54', '#e2caa5', '#8c6b48', '#d8be98', '#9c7a54', '#e2caa5'];
+      const stripeH = 64 / stripes.length;
+      stripes.forEach((col, i) => {
+        ctx.fillStyle = col;
+        ctx.fillRect(0, i * stripeH, 64, stripeH);
+      });
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      return tex;
+    }
+
+    const walnutTex = createWalnutTexture();
+    const plyEdgeTex = createPlyEdgeTexture();
+
+    const walnutMat = new THREE.MeshStandardMaterial({
+      map: walnutTex,
+      roughness: 0.55,
+      metalness: 0.05
+    });
+
+    const darkWalnutMat = new THREE.MeshStandardMaterial({
+      map: walnutTex,
+      color: 0xd8c2b0,
+      roughness: 0.5,
+      metalness: 0.05
+    });
+
+    const plyEdgeMat = new THREE.MeshStandardMaterial({
+      map: plyEdgeTex,
+      roughness: 0.65,
+      metalness: 0.02
+    });
+
+    const brassMat = new THREE.MeshStandardMaterial({
+      color: 0xd4af37,
+      roughness: 0.25,
+      metalness: 0.85
+    });
+
+    function createPlyBoard(w, h, depth, posX, posY, posZ, isDarkFace = false) {
+      const geom = new THREE.BoxGeometry(w, h, depth);
+      const faceMat = isDarkFace ? darkWalnutMat : walnutMat;
+      const materials = [
+        w > h ? plyEdgeMat : faceMat,
+        w > h ? plyEdgeMat : faceMat,
+        h > w ? plyEdgeMat : faceMat,
+        h > w ? plyEdgeMat : faceMat,
+        isDarkFace ? faceMat : plyEdgeMat,
+        plyEdgeMat
+      ];
+      const mesh = new THREE.Mesh(geom, materials);
+      mesh.position.set(posX, posY, posZ);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    // Continuous straight slant from 11.0" at the back (-halfD) down to 4.5" at the front (+halfD)
+    function createSlopedTrayDivider(thickness, backH, frontH, depth, posX, bottomY, posZ) {
+      const shape = new THREE.Shape();
+      const halfD = depth / 2;
+
+      shape.moveTo(-halfD, 0);
+      shape.lineTo(halfD, 0);
+      shape.lineTo(halfD, frontH);
+      shape.lineTo(-halfD, backH);
+      shape.closePath();
+
+      const extrudeSettings = { depth: thickness, bevelEnabled: false };
+      const geom = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+
+      geom.rotateY(-Math.PI / 2);
+      geom.translate(posX + thickness / 2, bottomY, posZ);
+
+      const mesh = new THREE.Mesh(geom, [walnutMat, plyEdgeMat]);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    function createBrassFoot(x, z, isLeftCorner = true, isFront = true) {
+      const group = new THREE.Group();
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.35, 2.2), brassMat);
+      plate.position.y = 3.825;
+      group.add(plate);
+
+      const legGeom = new THREE.CylinderGeometry(0.42, 0.22, 3.8, 16);
+      const leg = new THREE.Mesh(legGeom, brassMat);
+      leg.position.y = 1.9;
+      leg.rotation.z = isLeftCorner ? -0.08 : 0.08;
+      leg.rotation.x = isFront ? 0.06 : -0.06;
+      leg.castShadow = true;
+      group.add(leg);
+
+      group.position.set(x, 0, z);
+      return group;
+    }
+
+    function createRecordStack(width, centerX, bottomY, centerZ, isTray = false) {
+      const group = new THREE.Group();
+      const jacketColors = [
+        0xc83e2b, 0x2b5b84, 0xd99b26, 0x2e6f40, 0xded9ce,
+        0x1d1d1d, 0x8a3351, 0x4b6878, 0xe36836, 0x6c5380
+      ];
+
+      if (isTray) {
+        const count = 9;
+        for (let i = 0; i < count; i++) {
+          const recColor = jacketColors[(i + Math.floor(Math.abs(centerX))) % jacketColors.length];
+          const recMat = new THREE.MeshStandardMaterial({ color: recColor, roughness: 0.45 });
+          const rec = new THREE.Mesh(new THREE.BoxGeometry(12.2, 12.2, 0.18), recMat);
+          const zOffset = -4.5 + i * 1.05;
+          rec.position.set(centerX + (Math.random() - 0.5) * 0.3, bottomY + 6.0, centerZ + zOffset);
+          rec.rotation.x = -0.14;
+          rec.castShadow = true;
+          group.add(rec);
+        }
+      } else {
+        let curX = centerX - width / 2 + 0.35;
+        const maxX = centerX + width / 2 - 0.8;
+        let idx = 0;
+        while (curX < maxX) {
+          const spineThick = 0.16 + (idx % 3) * 0.06;
+          const col = jacketColors[(idx * 3 + Math.floor(Math.abs(centerX))) % jacketColors.length];
+          const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.5 });
+          const rec = new THREE.Mesh(new THREE.BoxGeometry(spineThick, 12.25, 12.25), mat);
+          rec.position.set(curX, bottomY + 6.15, centerZ + 0.5);
+          if (curX > maxX - 2.2) {
+            rec.rotation.z = 0.09;
+            rec.position.x += 0.3;
+          }
+          rec.castShadow = true;
+          group.add(rec);
+          curX += spineThick + 0.05;
+          idx++;
+        }
+      }
+      return group;
+    }
+
+    // --- BLUEPRINT DIMENSIONS IN INCHES ---
+    const T = 0.75;            // 3/4" Plywood thickness
+    const DEPTH = 16.0;        // 16" Cabinet depth
+    const FOOT_H = 4.0;        // 4" Brass feet
+    const BOT_CUBBY_H = 15.0;  // 15" Bottom row height (aligned across both units)
+    const TRAY_BACK_H = 11.0;  // Full height at the back of the tray
+    const TRAY_FRONT_H = 4.5;  // Slants down to 4.5" at the front
+    const WALNUT_LIP_H = 3.5;  // Solid walnut front face below the brass rail
+    const TOP_REC_H = 15.0;    // 22" wide upper record section height
+
+    const Y_BASE_BOARD = FOOT_H + T / 2;
+    const Y_BOT_INTERIOR = FOOT_H + T;
+    const Y_MID_SHELF = Y_BOT_INTERIOR + BOT_CUBBY_H + T / 2;
+    const Y_TOP_INTERIOR = Y_BOT_INTERIOR + BOT_CUBBY_H + T;
+    const Y_LEFT_ROOF = Y_TOP_INTERIOR + TOP_REC_H + T / 2;
+
+    const LEFT_W = 51.0;
+    const RIGHT_W = 42.0;
+
+    // Separate Groups for Independent Toggling
+    const leftUnitGroup = new THREE.Group();
+    const rightUnitGroup = new THREE.Group();
+
+    const recordsGroup = new THREE.Group();
+    const leftRecordsGroup = new THREE.Group();
+    const rightRecordsGroup = new THREE.Group();
+    recordsGroup.add(leftRecordsGroup, rightRecordsGroup);
+
+    const gearGroup = new THREE.Group(); // Floating shelf + Turntable + Receiver + Rega
+
+    scene.add(leftUnitGroup, rightUnitGroup, recordsGroup, gearGroup);
+
+    const LEFT_X0 = -46.5;
+    const RIGHT_X0 = 4.5;
+
+    // 1. LEFT UNIT (51" Wide)
+    leftUnitGroup.add(createPlyBoard(LEFT_W, T, DEPTH, LEFT_X0 + LEFT_W / 2, Y_BASE_BOARD, 0));
+    leftUnitGroup.add(createPlyBoard(LEFT_W, T, DEPTH, LEFT_X0 + LEFT_W / 2, Y_MID_SHELF, 0));
+
+    const leftBackLower = createPlyBoard(LEFT_W - 0.2, BOT_CUBBY_H + T, 0.25, LEFT_X0 + LEFT_W / 2, Y_BOT_INTERIOR + BOT_CUBBY_H / 2, -DEPTH / 2 + 0.15, true);
+    leftUnitGroup.add(leftBackLower);
+
+    const xL_Wall1 = LEFT_X0 + T / 2;
+    const xL_DivB1 = LEFT_X0 + T + 15.0 + T / 2;
+    const xL_DivB2 = xL_DivB1 + T / 2 + 20.0 + T / 2;
+    const xL_Wall2 = LEFT_X0 + LEFT_W - T / 2;
+
+    [xL_Wall1, xL_DivB1, xL_DivB2, xL_Wall2].forEach(x => {
+      leftUnitGroup.add(createPlyBoard(T, BOT_CUBBY_H, DEPTH, x, Y_BOT_INTERIOR + BOT_CUBBY_H / 2, 0));
+    });
+
+    const doorW = 13.0;
+    const doorH = BOT_CUBBY_H;
+    const doorPivot = new THREE.Group();
+    doorPivot.position.set(xL_Wall2 - T / 2, Y_BOT_INTERIOR + doorH / 2, DEPTH / 2 - T / 2);
+    const doorMesh = createPlyBoard(doorW - 0.12, doorH - 0.12, T, -doorW / 2, 0, 0, true);
+    doorPivot.add(doorMesh);
+
+    const knobMesh = new THREE.Mesh(new THREE.SphereGeometry(0.42, 16, 16), brassMat);
+    knobMesh.position.set(-doorW + 1.3, doorH / 2 - 1.5, T / 2 + 0.35);
+    doorPivot.add(knobMesh);
+    leftUnitGroup.add(doorPivot);
+
+    const xL_DivT1 = LEFT_X0 + T + 13.0 + T / 2;
+    const xL_DivT2 = xL_DivT1 + T / 2 + 13.0 + T / 2;
+
+    leftUnitGroup.add(createSlopedTrayDivider(T, TRAY_BACK_H, TRAY_FRONT_H, DEPTH, xL_Wall1, Y_TOP_INTERIOR, 0));
+    leftUnitGroup.add(createSlopedTrayDivider(T, TRAY_BACK_H, TRAY_FRONT_H, DEPTH, xL_DivT1, Y_TOP_INTERIOR, 0));
+
+    const tray1CenterX = (xL_Wall1 + xL_DivT1) / 2;
+    const tray2CenterX = (xL_DivT1 + xL_DivT2) / 2;
+    [tray1CenterX, tray2CenterX].forEach(cx => {
+      leftUnitGroup.add(createPlyBoard(13.0, WALNUT_LIP_H, T, cx, Y_TOP_INTERIOR + WALNUT_LIP_H / 2, DEPTH / 2 - T / 2, true));
+      const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 13.0, 16), brassMat);
+      rail.rotation.z = Math.PI / 2;
+      rail.position.set(cx, Y_TOP_INTERIOR + TRAY_FRONT_H - 0.35, DEPTH / 2 - T / 2);
+      leftUnitGroup.add(rail);
+    });
+    leftUnitGroup.add(createPlyBoard(26.0 + 2 * T, TRAY_BACK_H, 0.25, LEFT_X0 + 13.0 + T, Y_TOP_INTERIOR + TRAY_BACK_H / 2, -DEPTH / 2 + 0.15, true));
+
+    leftUnitGroup.add(createPlyBoard(T, TOP_REC_H, DEPTH, xL_DivT2, Y_TOP_INTERIOR + TOP_REC_H / 2, 0));
+    leftUnitGroup.add(createPlyBoard(T, TOP_REC_H, DEPTH, xL_Wall2, Y_TOP_INTERIOR + TOP_REC_H / 2, 0));
+    const rec22Width = 22.0 + 2 * T;
+    const rec22CenterX = (xL_DivT2 + xL_Wall2) / 2;
+    leftUnitGroup.add(createPlyBoard(rec22Width, T, DEPTH, rec22CenterX, Y_LEFT_ROOF, 0));
+    leftUnitGroup.add(createPlyBoard(22.0, TOP_REC_H, 0.25, rec22CenterX, Y_TOP_INTERIOR + TOP_REC_H / 2, -DEPTH / 2 + 0.15, true));
+
+    leftUnitGroup.add(createBrassFoot(LEFT_X0 + 1.2, DEPTH / 2 - 1.2, true, true));
+    leftUnitGroup.add(createBrassFoot(LEFT_X0 + 1.2, -DEPTH / 2 + 1.2, true, false));
+    leftUnitGroup.add(createBrassFoot(LEFT_X0 + LEFT_W / 2, DEPTH / 2 - 1.2, true, true));
+    leftUnitGroup.add(createBrassFoot(LEFT_X0 + LEFT_W - 1.2, DEPTH / 2 - 1.2, false, true));
+    leftUnitGroup.add(createBrassFoot(LEFT_X0 + LEFT_W - 1.2, -DEPTH / 2 + 1.2, false, false));
+
+    // 2. RIGHT UNIT (42" Wide)
+    rightUnitGroup.add(createPlyBoard(RIGHT_W, T, DEPTH, RIGHT_X0 + RIGHT_W / 2, Y_BASE_BOARD, 0));
+    rightUnitGroup.add(createPlyBoard(RIGHT_W, T, DEPTH, RIGHT_X0 + RIGHT_W / 2, Y_MID_SHELF, 0));
+
+    rightUnitGroup.add(createPlyBoard(RIGHT_W - 0.2, BOT_CUBBY_H + T, 0.25, RIGHT_X0 + RIGHT_W / 2, Y_BOT_INTERIOR + BOT_CUBBY_H / 2, -DEPTH / 2 + 0.15, true));
+    rightUnitGroup.add(createPlyBoard(RIGHT_W - 0.2, TRAY_BACK_H, 0.25, RIGHT_X0 + RIGHT_W / 2, Y_TOP_INTERIOR + TRAY_BACK_H / 2, -DEPTH / 2 + 0.15, true));
+
+    const xR_Wall1 = RIGHT_X0 + T / 2;
+    const xR_DivB1 = RIGHT_X0 + T + 17.75 + T / 2;
+    const xR_Wall2 = RIGHT_X0 + RIGHT_W - T / 2;
+
+    [xR_Wall1, xR_DivB1, xR_Wall2].forEach(x => {
+      rightUnitGroup.add(createPlyBoard(T, BOT_CUBBY_H, DEPTH, x, Y_BOT_INTERIOR + BOT_CUBBY_H / 2, 0));
+    });
+
+    const xR_DivT1 = RIGHT_X0 + T + 13.0 + T / 2;
+    const xR_DivT2 = xR_DivT1 + T / 2 + 13.0 + T / 2;
+
+    [xR_Wall1, xR_DivT1, xR_DivT2, xR_Wall2].forEach(x => {
+      rightUnitGroup.add(createSlopedTrayDivider(T, TRAY_BACK_H, TRAY_FRONT_H, DEPTH, x, Y_TOP_INTERIOR, 0));
+    });
+
+    const rTray1X = (xR_Wall1 + xR_DivT1) / 2;
+    const rTray2X = (xR_DivT1 + xR_DivT2) / 2;
+    const rTray3X = (xR_DivT2 + xR_Wall2) / 2;
+
+    [rTray1X, rTray2X, rTray3X].forEach(cx => {
+      rightUnitGroup.add(createPlyBoard(13.0, WALNUT_LIP_H, T, cx, Y_TOP_INTERIOR + WALNUT_LIP_H / 2, DEPTH / 2 - T / 2, true));
+      const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 13.0, 16), brassMat);
+      rail.rotation.z = Math.PI / 2;
+      rail.position.set(cx, Y_TOP_INTERIOR + TRAY_FRONT_H - 0.35, DEPTH / 2 - T / 2);
+      rightUnitGroup.add(rail);
+    });
+
+    rightUnitGroup.add(createBrassFoot(RIGHT_X0 + 1.2, DEPTH / 2 - 1.2, true, true));
+    rightUnitGroup.add(createBrassFoot(RIGHT_X0 + 1.2, -DEPTH / 2 + 1.2, true, false));
+    rightUnitGroup.add(createBrassFoot(RIGHT_X0 + RIGHT_W - 1.2, DEPTH / 2 - 1.2, false, true));
+    rightUnitGroup.add(createBrassFoot(RIGHT_X0 + RIGHT_W - 1.2, -DEPTH / 2 + 1.2, false, false));
+
+    // 3A. FLOATING SHELF & ELECTRONICS (gearGroup)
+    const receiverY = Y_LEFT_ROOF + T / 2;
+    const recCase = createPlyBoard(17.2, 5.2, 13.5, rec22CenterX + 1.8, receiverY + 2.6, 0, true);
+    const recFace = new THREE.Mesh(
+      new THREE.BoxGeometry(16.4, 4.6, 0.4),
+      new THREE.MeshStandardMaterial({ color: 0x1e1e1e, roughness: 0.3, metalness: 0.7 })
+    );
+    recFace.position.set(rec22CenterX + 1.8, receiverY + 2.6, 6.7);
+    const recDial = new THREE.Mesh(
+      new THREE.BoxGeometry(11.5, 1.4, 0.45),
+      new THREE.MeshStandardMaterial({ color: 0x3895b8, emissive: 0x164c63, roughness: 0.2 })
+    );
+    recDial.position.set(rec22CenterX + 1.0, receiverY + 3.4, 6.72);
+    gearGroup.add(recCase, recFace, recDial);
+
+    const regaBox = new THREE.Mesh(
+      new THREE.BoxGeometry(4.8, 1.8, 6.0),
+      new THREE.MeshStandardMaterial({ color: 0x181818, roughness: 0.3, metalness: 0.6 })
+    );
+    regaBox.position.set(xL_DivT2 + 2.8, receiverY + 0.9, 2.0);
+    gearGroup.add(regaBox);
+
+    const shelfY = receiverY + 9.0;
+    const liveEdgeShelf = createPlyBoard(25.0, 1.3, 14.5, rec22CenterX + 0.5, shelfY, -0.5, true);
+    gearGroup.add(liveEdgeShelf);
+
+    [-7.5, 8.5].forEach(dx => {
+      const bracket = new THREE.Mesh(
+        new THREE.BoxGeometry(0.6, 5.0, 10.0),
+        new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.8, roughness: 0.3 })
+      );
+      bracket.position.set(rec22CenterX + dx, shelfY - 2.6, -2.5);
+      gearGroup.add(bracket);
+    });
+
+    const ttBase = new THREE.Mesh(
+      new THREE.BoxGeometry(17.5, 1.5, 13.5),
+      new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.3, metalness: 0.5 })
+    );
+    ttBase.position.set(rec22CenterX + 0.5, shelfY + 1.5, -0.2);
+    const platter = new THREE.Mesh(
+      new THREE.CylinderGeometry(5.8, 5.8, 0.5, 32),
+      new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.2 })
+    );
+    platter.position.set(rec22CenterX - 0.8, shelfY + 2.4, -0.2);
+    const dustCover = new THREE.Mesh(
+      new THREE.BoxGeometry(17.3, 2.6, 13.3),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.28,
+        roughness: 0.1,
+        transmission: 0.6
+      })
+    );
+    dustCover.position.set(rec22CenterX + 0.5, shelfY + 3.4, -0.2);
+    gearGroup.add(ttBase, platter, dustCover);
+
+    // 3B. VINYL RECORDS (recordsGroup)
+    leftRecordsGroup.add(createRecordStack(15.0, (xL_Wall1 + xL_DivB1) / 2, Y_BOT_INTERIOR, 0, false));
+    leftRecordsGroup.add(createRecordStack(20.0, (xL_DivB1 + xL_DivB2) / 2, Y_BOT_INTERIOR, 0, false));
+    leftRecordsGroup.add(createRecordStack(13.0, tray1CenterX, Y_TOP_INTERIOR, 0, true));
+    leftRecordsGroup.add(createRecordStack(13.0, tray2CenterX, Y_TOP_INTERIOR, 0, true));
+    leftRecordsGroup.add(createRecordStack(22.0, rec22CenterX, Y_TOP_INTERIOR, 0, false));
+
+    rightRecordsGroup.add(createRecordStack(17.75, (xR_Wall1 + xR_DivB1) / 2, Y_BOT_INTERIOR, 0, false));
+    rightRecordsGroup.add(createRecordStack(22.0, (xR_DivB1 + xR_Wall2) / 2, Y_BOT_INTERIOR, 0, false));
+    rightRecordsGroup.add(createRecordStack(13.0, rTray1X, Y_TOP_INTERIOR, 0, true));
+    rightRecordsGroup.add(createRecordStack(13.0, rTray2X, Y_TOP_INTERIOR, 0, true));
+    rightRecordsGroup.add(createRecordStack(13.0, rTray3X, Y_TOP_INTERIOR, 0, true));
+
+    // 4. ROOM ENVIRONMENT
+    const roomGroup = new THREE.Group();
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(240, 160),
+      new THREE.MeshStandardMaterial({ color: 0x7b4824, roughness: 0.45 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    roomGroup.add(floor);
+
+    const wall = new THREE.Mesh(
+      new THREE.PlaneGeometry(240, 120),
+      new THREE.MeshStandardMaterial({ color: 0xebe6dc, roughness: 0.85 })
+    );
+    wall.position.set(0, 60, -DEPTH / 2 - 0.5);
+    wall.receiveShadow = true;
+    roomGroup.add(wall);
+    scene.add(roomGroup);
+
+    // 5. 3D DIMENSION LABELS
+    const dimSpecs = [
+      { text: '13" Tray (4.5" Front)', pos: new THREE.Vector3(tray1CenterX, Y_TOP_INTERIOR + 2.4, DEPTH / 2 + 0.8), unit: 'left' },
+      { text: '13" Tray', pos: new THREE.Vector3(tray2CenterX, Y_TOP_INTERIOR + 2.4, DEPTH / 2 + 0.8), unit: 'left' },
+      { text: '22" Records', pos: new THREE.Vector3(rec22CenterX, Y_TOP_INTERIOR + 7.5, DEPTH / 2 + 0.8), unit: 'left' },
+      { text: '15" Records (15" H)', pos: new THREE.Vector3((xL_Wall1 + xL_DivB1) / 2, Y_BOT_INTERIOR + 7.5, DEPTH / 2 + 0.8), unit: 'left' },
+      { text: '20" Records (15" H)', pos: new THREE.Vector3((xL_DivB1 + xL_DivB2) / 2, Y_BOT_INTERIOR + 7.5, DEPTH / 2 + 0.8), unit: 'left' },
+      { text: '13" Cabinet', pos: new THREE.Vector3((xL_DivB2 + xL_Wall2) / 2, Y_BOT_INTERIOR + 7.5, DEPTH / 2 + 1.2), unit: 'left' },
+      { text: '13" Tray', pos: new THREE.Vector3(rTray1X, Y_TOP_INTERIOR + 2.4, DEPTH / 2 + 0.8), unit: 'right' },
+      { text: '13" Tray', pos: new THREE.Vector3(rTray2X, Y_TOP_INTERIOR + 2.4, DEPTH / 2 + 0.8), unit: 'right' },
+      { text: '13" Tray (11" Back -> 4.5" Front)', pos: new THREE.Vector3(rTray3X, Y_TOP_INTERIOR + 2.4, DEPTH / 2 + 0.8), unit: 'right' },
+      { text: '17.75" Records (15" H)', pos: new THREE.Vector3((xR_Wall1 + xR_DivB1) / 2, Y_BOT_INTERIOR + 7.5, DEPTH / 2 + 0.8), unit: 'right' },
+      { text: '22" Records (15" H)', pos: new THREE.Vector3((xR_DivB1 + xR_Wall2) / 2, Y_BOT_INTERIOR + 7.5, DEPTH / 2 + 0.8), unit: 'right' }
+    ];
+
+    const labelElements = dimSpecs.map(spec => {
+      const el = document.createElement('div');
+      el.className = 'dim-label';
+      el.textContent = spec.text;
+      labelsContainer.appendChild(el);
+      return { el, text: spec.text, basePos: spec.pos.clone(), unit: spec.unit };
+    });
+
+    // 6. UI INTERACTIVITY & VISIBILITY BUTTONS
+    const panelBody = document.getElementById('panel-body');
+    const toggleUiBtn = document.getElementById('toggle-ui');
+    document.getElementById('panel-header').addEventListener('click', () => {
+      const isHidden = panelBody.classList.toggle('hidden');
+      toggleUiBtn.textContent = isHidden ? 'Show Menu' : 'Hide Menu';
+    });
+
+    let doorOpen = false;
+    let targetDoorAngle = 0;
+    let showDims = true;
+    let unitGap = 0;
+
+    const btnDoor = document.getElementById('btn-door');
+    function toggleDoor() {
+      doorOpen = !doorOpen;
+      targetDoorAngle = doorOpen ? Math.PI * 0.62 : 0;
+      btnDoor.textContent = doorOpen ? 'Close Door' : 'Open Door';
+      btnDoor.className = doorOpen
+        ? 'bg-[#d4af37] text-[#181614] font-semibold py-2 px-2.5 rounded-lg text-xs border border-[#d4af37] transition'
+        : 'bg-white/10 hover:bg-white/20 text-[#f3efea] font-medium py-2 px-2.5 rounded-lg text-xs border border-white/15 transition';
+    }
+    btnDoor.addEventListener('click', toggleDoor);
+
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    window.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('#ui-panel') || e.target.closest('#photo-modal') || e.target.closest('#cutlist-modal')) return;
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const hits = raycaster.intersectObjects(doorPivot.children);
+      if (hits.length > 0) toggleDoor();
+    });
+
+    const gapSlider = document.getElementById('gap-slider');
+    const gapVal = document.getElementById('gap-val');
+    gapSlider.addEventListener('input', (e) => {
+      unitGap = parseFloat(e.target.value);
+      gapVal.textContent = unitGap.toFixed(1) + '"';
+      leftUnitGroup.position.x = -unitGap / 2;
+      leftRecordsGroup.position.x = -unitGap / 2;
+      gearGroup.position.x = -unitGap / 2;
+      rightUnitGroup.position.x = unitGap / 2;
+      rightRecordsGroup.position.x = unitGap / 2;
+    });
+
+    const btnGear = document.getElementById('btn-gear');
+    const btnRecords = document.getElementById('btn-records');
+    const btnCredenzaOnly = document.getElementById('btn-credenza-only');
+
+    const activeBtnClass = 'bg-[#d4af37] text-[#181614] font-semibold py-2 px-2.5 rounded-lg text-xs border border-[#d4af37] transition';
+    const inactiveBtnClass = 'bg-white/10 hover:bg-white/20 text-[#f3efea] font-medium py-2 px-2.5 rounded-lg text-xs border border-white/15 transition';
+
+    function syncVisibilityUI() {
+      btnGear.textContent = gearGroup.visible ? 'Shelf & Gear: ON' : 'Shelf & Gear: OFF';
+      btnGear.className = gearGroup.visible ? activeBtnClass : inactiveBtnClass;
+
+      btnRecords.textContent = recordsGroup.visible ? 'Records: ON' : 'Records: OFF';
+      btnRecords.className = recordsGroup.visible ? activeBtnClass : inactiveBtnClass;
+
+      const isBareCredenza = !gearGroup.visible && !recordsGroup.visible;
+      btnCredenzaOnly.className = isBareCredenza
+        ? 'w-full mt-2 py-2 px-3 rounded-lg text-xs font-bold bg-[#d4af37] text-[#181614] border border-[#d4af37] transition'
+        : 'w-full mt-2 py-2 px-3 rounded-lg text-xs font-semibold bg-[#d4af37]/15 hover:bg-[#d4af37]/25 text-[#f7e7b4] border border-[#d4af37]/50 transition';
+      btnCredenzaOnly.textContent = isBareCredenza
+        ? '🪵 Showing Bare Credenza Only (Tap to Restore)'
+        : '🪵 Bare Credenza Only (Hide Shelf, Gear & LPs)';
+    }
+
+    btnGear.addEventListener('click', () => {
+      gearGroup.visible = !gearGroup.visible;
+      syncVisibilityUI();
+    });
+
+    btnRecords.addEventListener('click', () => {
+      recordsGroup.visible = !recordsGroup.visible;
+      syncVisibilityUI();
+    });
+
+    btnCredenzaOnly.addEventListener('click', () => {
+      const currentlyBare = !gearGroup.visible && !recordsGroup.visible;
+      gearGroup.visible = currentlyBare;
+      recordsGroup.visible = currentlyBare;
+      syncVisibilityUI();
+    });
+
+    const btnDims = document.getElementById('btn-dims');
+    btnDims.addEventListener('click', () => {
+      showDims = !showDims;
+      btnDims.textContent = showDims ? 'Dimensions: ON' : 'Dimensions: OFF';
+      btnDims.className = showDims ? activeBtnClass : inactiveBtnClass;
+      labelsContainer.style.display = showDims ? 'block' : 'none';
+    });
+
+    const btnRoom = document.getElementById('btn-room');
+    btnRoom.addEventListener('click', () => {
+      roomGroup.visible = !roomGroup.visible;
+      btnRoom.textContent = roomGroup.visible ? 'Room & Wall: ON' : 'Room & Wall: OFF';
+      btnRoom.className = roomGroup.visible
+        ? 'col-span-2 bg-[#d4af37] text-[#181614] font-semibold py-1.5 px-2.5 rounded-lg text-xs border border-[#d4af37] transition'
+        : 'col-span-2 bg-white/10 hover:bg-white/20 text-[#f3efea] font-medium py-1.5 px-2.5 rounded-lg text-xs border border-white/15 transition';
+    });
+
+    function moveCamera(px, py, pz, tx, ty, tz) {
+      camera.position.set(px, py, pz);
+      controls.target.set(tx, ty, tz);
+      controls.update();
+    }
+    document.getElementById('cam-front').addEventListener('click', () => moveCamera(0, 22, 112, 0, 19, 0));
+    document.getElementById('cam-iso').addEventListener('click', () => moveCamera(45, 34, 100, 0, 19, 0));
+    document.getElementById('cam-top').addEventListener('click', () => moveCamera(0, 115, 18, 0, 18, 0));
+    document.getElementById('cam-side').addEventListener('click', () => moveCamera(90, 26, 28, 15, 20, 0));
+
+    // --- SNAP 3D PHOTO MODAL LOGIC ---
+    const photoModal = document.getElementById('photo-modal');
+    const snapshotImg = document.getElementById('snapshot-img');
+    let latestBlob = null;
+
+    document.getElementById('btn-snap').addEventListener('click', () => {
+      renderer.render(scene, camera);
+
+      const glCanvas = renderer.domElement;
+      const outCanvas = document.createElement('canvas');
+      const bannerH = 64;
+      outCanvas.width = glCanvas.width;
+      outCanvas.height = glCanvas.height + bannerH;
+      const ctx = outCanvas.getContext('2d');
+
+      ctx.drawImage(glCanvas, 0, 0);
+
+      const dpr = glCanvas.width / window.innerWidth;
+      if (showDims) {
+        ctx.font = `600 ${Math.round(11 * dpr)}px Inter, -apple-system, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        labelElements.forEach(item => {
+          const worldPos = item.basePos.clone();
+          worldPos.x += (item.unit === 'left' ? -unitGap / 2 : unitGap / 2);
+          worldPos.project(camera);
+          if (worldPos.z < 1) {
+            const x = (worldPos.x * 0.5 + 0.5) * glCanvas.width;
+            const y = (-(worldPos.y * 0.5) + 0.5) * glCanvas.height;
+            const padX = 7 * dpr;
+            const boxH = 20 * dpr;
+            const textW = ctx.measureText(item.text).width;
+            const boxW = textW + padX * 2;
+
+            ctx.fillStyle = 'rgba(18, 16, 14, 0.88)';
+            ctx.strokeStyle = 'rgba(212, 175, 55, 0.75)';
+            ctx.lineWidth = 1.2 * dpr;
+            ctx.beginPath();
+            ctx.roundRect(x - boxW / 2, y - boxH / 2, boxW, boxH, 4 * dpr);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#f7e7b4';
+            ctx.fillText(item.text, x, y);
+          }
+        });
+      }
+
+      ctx.fillStyle = '#141210';
+      ctx.fillRect(0, glCanvas.height, outCanvas.width, bannerH);
+      ctx.strokeStyle = '#d4af37';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, glCanvas.height);
+      ctx.lineTo(outCanvas.width, glCanvas.height);
+      ctx.stroke();
+
+      ctx.fillStyle = '#d4af37';
+      ctx.textAlign = 'left';
+      ctx.font = `700 ${Math.round(12 * dpr)}px Inter, -apple-system, sans-serif`;
+      ctx.fillText(
+        'CUSTOM RECORD CREDENZA — 3/4" WALNUT PLYWOOD (16" DEPTH | 4" BRASS FEET)',
+        16 * dpr,
+        glCanvas.height + 22
+      );
+
+      ctx.fillStyle = '#e5dfd5';
+      ctx.font = `500 ${Math.round(11 * dpr)}px Inter, -apple-system, sans-serif`;
+      ctx.fillText(
+        'Left Unit (51"W × 36.25"H): Bot 15" | 20" | 13" Cab (15"H) • Top 13" | 13" Trays + 22" Box   ||   Right Unit (42"W × 31.5"H): Bot 17.75" | 22" (15"H) • Top Three 13" Trays (11"->4.5" Slant)',
+        16 * dpr,
+        glCanvas.height + 44
+      );
+
+      const dataUrl = outCanvas.toDataURL('image/png');
+      snapshotImg.src = dataUrl;
+      outCanvas.toBlob(blob => { latestBlob = blob; }, 'image/png');
+      photoModal.classList.remove('hidden');
+      photoModal.classList.add('flex');
+    });
+
+    document.getElementById('btn-close-modal').addEventListener('click', () => {
+      photoModal.classList.add('hidden');
+      photoModal.classList.remove('flex');
+    });
+
+    document.getElementById('btn-share-img').addEventListener('click', async () => {
+      if (latestBlob && navigator.canShare) {
+        const file = new File([latestBlob], 'credenza-3d-spec.png', { type: 'image/png' });
+        if (navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: 'Record Credenza 3D Blueprint'
+            });
+            return;
+          } catch (err) {}
+        }
+      }
+      const a = document.createElement('a');
+      a.href = snapshotImg.src;
+      a.download = 'credenza-3d-spec.png';
+      a.click();
+      showToast('📸 Image download started!');
+    });
+
+    // Cut List Modal Logic
+    const cutlistModal = document.getElementById('cutlist-modal');
+    document.getElementById('btn-cutlist').addEventListener('click', () => {
+      cutlistModal.classList.remove('hidden');
+    });
+    document.getElementById('btn-close-cutlist').addEventListener('click', () => {
+      cutlistModal.classList.add('hidden');
+    });
+
+    document.getElementById('btn-copy-specs').addEventListener('click', () => {
+      const specText = [
+        'CUSTOM RECORD CREDENZA - WOODWORKER CUT LIST (3/4" WALNUT PLYWOOD)',
+        'Depth: 16.0" Front-to-Back | Feet: 4.0" Brass Legs | Bottom Row Height: 15.0" on Both Units',
+        '',
+        'LEFT UNIT (51.0" W x 36.25" H x 16.0" D):',
+        '- 2x Horizontal Boards (Base & Middle Shelf): 51.0" W x 16.0" D (3/4" ply)',
+        '- 4x Bottom Vertical Walls: 15.0" H x 16.0" D (3/4" ply) -> 15" | 20" | 13" bays',
+        '- 1x Solid Inset Cabinet Door (Bottom Right): 12.875" W x 14.875" H (3/4" ply) + brass knob',
+        '- 2x Sloped Tray Dividers (Top Left): 16.0" D, straight slant from 11.0" Back to 4.5" Front',
+        '- 2x Tray Front Walnut Panels: 13.0" W x 3.5" H (flush on shelf) + 13" brass rails at 4.15" H',
+        '- 2x Upper 22" Box Vertical Walls: 15.0" H x 16.0" D (3/4" ply)',
+        '- 1x Upper 22" Box Roof: 23.5" W x 16.0" D (3/4" ply)',
+        '',
+        'RIGHT UNIT (42.0" W x 31.5" H x 16.0" D):',
+        '- 2x Horizontal Boards (Base & Middle Shelf): 42.0" W x 16.0" D (3/4" ply)',
+        '- 3x Bottom Vertical Walls: 15.0" H x 16.0" D (3/4" ply) -> 17.75" | 22" bays',
+        '- 4x Sloped Tray Dividers (Top Row): 16.0" D, straight slant from 11.0" Back to 4.5" Front',
+        '- 3x Tray Front Walnut Panels: 13.0" W x 3.5" H (flush on shelf) + 13" brass rails at 4.15" H'
+      ].join('\n');
+
+      const helper = document.getElementById('clipboard-helper');
+      helper.value = specText;
+      helper.select();
+      document.execCommand('copy');
+      showToast('📋 Complete Woodworker Cut List copied to clipboard!');
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      doorPivot.rotation.y += (targetDoorAngle - doorPivot.rotation.y) * 0.12;
+
+      if (showDims) {
+        labelElements.forEach(item => {
+          const worldPos = item.basePos.clone();
+          worldPos.x += (item.unit === 'left' ? -unitGap / 2 : unitGap / 2);
+          worldPos.project(camera);
+          const x = (worldPos.x * 0.5 + 0.5) * window.innerWidth;
+          const y = (-(worldPos.y * 0.5) + 0.5) * window.innerHeight;
+          if (worldPos.z < 1) {
+            item.el.style.left = `${x}px`;
+            item.el.style.top = `${y}px`;
+            item.el.style.opacity = '1';
+          } else {
+            item.el.style.opacity = '0';
+          }
+        });
+      }
+      renderer.render(scene, camera);
+    }
+
+    window.onload = function () {
+      animate();
+    };
+  </script>
+</body>
+</html>
